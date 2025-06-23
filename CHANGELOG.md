@@ -10,11 +10,16 @@ Please also have a look at our
 
 ### Added
 
+- Interface `RuleContainer` for `RuleSet` `Rule` manipulation methods (#1256)
+- `RuleSet::removeMatchingRules()` method
+  (for the implementing classes `AtRuleSet` and `DeclarationBlock`) (#1249)
+- `RuleSet::removeAllRules()` method
+  (for the implementing classes `AtRuleSet` and `DeclarationBlock`) (#1249)
 - Add Interface `CSSElement` (#1231)
 - Methods `getLineNumber` and `getColumnNumber` which return a nullable `int`
   for the following classes:
   `Comment`, `CSSList`, `SourceException`, `Charset`, `CSSNamespace`, `Import`,
-  `Rule`, `DeclarationBlock`, `RuleSet`, `CSSFunction`, `Value` (#1225)
+  `Rule`, `DeclarationBlock`, `RuleSet`, `CSSFunction`, `Value` (#1225, #1263)
 - `Positionable` interface for CSS items that may have a position
   (line and perhaps column number) in the parsed CSS (#1221)
 - Partial support for CSS Color Module Level 4:
@@ -27,6 +32,14 @@ Please also have a look at our
 
 ### Changed
 
+- `setPosition()` (in `Rule` and other classes) now has fluent interface,
+  returning itself (#1259)
+- `RuleSet::removeRule()` now only allows `Rule` as the parameter
+  (implementing classes are `AtRuleSet` and `DeclarationBlock`);
+  use `removeMatchingRules()` or `removeAllRules()` for other functions (#1255)
+- `RuleSet::getRules()` and `getRulesAssoc()` now only allow `string` or `null`
+  as the parameter (implementing classes are `AtRuleSet` and `DeclarationBlock`)
+  (#1253)
 - Parameters for `getAllValues()` are deconflated, so it now takes three (all
   optional), allowing `$element` and `$ruleSearchPattern` to be specified
   separately (#1241)
@@ -46,6 +59,12 @@ Please also have a look at our
 
 ### Deprecated
 
+- Passing a `string` or `null` to `RuleSet::removeRule()` is deprecated
+  (implementing classes are `AtRuleSet` and `DeclarationBlock`);
+  use `removeMatchingRules()` or `removeAllRules()` instead (#1249)
+- Passing a `Rule` to `RuleSet::getRules()` or `getRulesAssoc()` is deprecated,
+  affecting the implementing classes `AtRuleSet` and `DeclarationBlock`
+  (call e.g. `getRules($rule->getRule())` instead) (#1248)
 - Passing a string as the first argument to `getAllValues()` is deprecated;
   the search pattern should now be passed as the second argument (#1241)
 - Passing a Boolean as the second argument to `getAllValues()` is deprecated;
@@ -86,6 +105,13 @@ Please also have a look at our
 
 ### Fixed
 
+- Insert `Rule` before sibling even with different property name
+  (in `RuleSet::addRule()`) (#1270)
+- Ensure `RuleSet::addRule()` sets non-negative column number when sibling
+  provided (#1268)
+- Set line number when `RuleSet::addRule()` called with only column number set
+  (#1265)
+- Ensure first rule added with `RuleSet::addRule()` has valid position (#1262)
 - Don't render `rgb` colors with percentage values using hex notation (#803)
 
 ### Documentation

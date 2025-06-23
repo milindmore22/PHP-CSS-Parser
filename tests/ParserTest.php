@@ -14,6 +14,7 @@ use Sabberworm\CSS\Parser;
 use Sabberworm\CSS\Parsing\OutputException;
 use Sabberworm\CSS\Parsing\SourceException;
 use Sabberworm\CSS\Parsing\UnexpectedTokenException;
+use Sabberworm\CSS\Position\Positionable;
 use Sabberworm\CSS\Property\AtRule;
 use Sabberworm\CSS\Property\Charset;
 use Sabberworm\CSS\Property\CSSNamespace;
@@ -348,7 +349,7 @@ body {color: green;font: 75% "Lucida Grande","Trebuchet MS",Verdana,sans-serif;}
             $document->render()
         );
         foreach ($document->getAllRuleSets() as $ruleSet) {
-            $ruleSet->removeRule('font-');
+            $ruleSet->removeMatchingRules('font-');
         }
         self::assertSame(
             '#header {margin: 10px 2em 1cm 2%;color: red !important;background-color: green;'
@@ -357,7 +358,7 @@ body {color: green;}',
             $document->render()
         );
         foreach ($document->getAllRuleSets() as $ruleSet) {
-            $ruleSet->removeRule('background-');
+            $ruleSet->removeMatchingRules('background-');
         }
         self::assertSame(
             '#header {margin: 10px 2em 1cm 2%;color: red !important;frequency: 30Hz;transform: rotate(1turn);}
@@ -1002,31 +1003,12 @@ body {background-color: red;}';
 
         $actual = [];
         foreach ($document->getContents() as $contentItem) {
-            // PHPStan can see what `assertInstanceOf()` does,
-            // but does not understand `LogicalOr` with multiple `IsIntanceOf` constraints.
-            // So a more explicit type check is required.
-            // TODO: tidy this up when an interface with `getLineNo()` is added.
-            if (
-                !$contentItem instanceof Charset
-                && !$contentItem instanceof CSSList
-                && !$contentItem instanceof CSSNamespace
-                && !$contentItem instanceof Import
-                && !$contentItem instanceof RuleSet
-            ) {
-                self::fail('Content item is not of an expected type.  It\'s a `' . \get_class($contentItem) . '`.');
-            }
-            $actual[$contentItem->getLineNo()] = [\get_class($contentItem)];
+            self::assertInstanceOf(Positionable::class, $contentItem);
+            $actual[$contentItem->getLineNumber()] = [\get_class($contentItem)];
             if ($contentItem instanceof KeyFrame) {
                 foreach ($contentItem->getContents() as $block) {
-                    if (
-                        !$block instanceof CSSList
-                        && !$block instanceof RuleSet
-                    ) {
-                        self::fail(
-                            'KeyFrame content item is not of an expected type.  It\'s a `' . \get_class($block) . '`.'
-                        );
-                    }
-                    $actual[$contentItem->getLineNo()][] = $block->getLineNo();
+                    self::assertInstanceOf(Positionable::class, $block);
+                    $actual[$contentItem->getLineNumber()][] = $block->getLineNumber();
                 }
             }
         }

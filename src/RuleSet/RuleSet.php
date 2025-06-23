@@ -27,7 +27,7 @@ use Sabberworm\CSS\Rule\Rule;
  * Note that `CSSListItem` extends both `Commentable` and `Renderable`,
  * so those interfaces must also be implemented by concrete subclasses.
  */
-abstract class RuleSet implements CSSElement, CSSListItem, Positionable
+abstract class RuleSet implements CSSElement, CSSListItem, Positionable, RuleContainer
 {
     use CommentContainer;
     use Position;
@@ -104,20 +104,55 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
         $position = \count($this->rules[$propertyName]);
 
         if ($sibling !== null) {
+            $siblingIsInSet = false;
             $siblingPosition = \array_search($sibling, $this->rules[$propertyName], true);
             if ($siblingPosition !== false) {
+                $siblingIsInSet = true;
                 $position = $siblingPosition;
-                $ruleToAdd->setPosition($sibling->getLineNo(), $sibling->getColNo() - 1);
+            } else {
+                $siblingIsInSet = $this->hasRule($sibling);
+                if ($siblingIsInSet) {
+                    // Maintain ordering within `$this->rules[$propertyName]`
+                    // by inserting before first `Rule` with a same-or-later position than the sibling.
+                    foreach ($this->rules[$propertyName] as $index => $rule) {
+                        if (self::comparePositionable($rule, $sibling) >= 0) {
+                            $position = $index;
+                            break;
+                        }
+                    }
+                }
+            }
+            if ($siblingIsInSet) {
+                // Increment column number of all existing rules on same line, starting at sibling
+                $siblingLineNumber = $sibling->getLineNumber();
+                $siblingColumnNumber = $sibling->getColumnNumber();
+                foreach ($this->rules as $rulesForAProperty) {
+                    foreach ($rulesForAProperty as $rule) {
+                        if (
+                            $rule->getLineNumber() === $siblingLineNumber &&
+                            $rule->getColumnNumber() >= $siblingColumnNumber
+                        ) {
+                            $rule->setPosition($siblingLineNumber, $rule->getColumnNumber() + 1);
+                        }
+                    }
+                }
+                $ruleToAdd->setPosition($siblingLineNumber, $siblingColumnNumber);
             }
         }
-        if ($ruleToAdd->getLineNo() === 0 && $ruleToAdd->getColNo() === 0) {
+
+        if ($ruleToAdd->getLineNumber() === null) {
             //this node is added manually, give it the next best line
+            $columnNumber = $ruleToAdd->getColumnNumber() ?? 0;
             $rules = $this->getRules();
             $rulesCount = \count($rules);
             if ($rulesCount > 0) {
                 $last = $rules[$rulesCount - 1];
-                $ruleToAdd->setPosition($last->getLineNo() + 1, 0);
+                $ruleToAdd->setPosition($last->getLineNo() + 1, $columnNumber);
+            } else {
+                $ruleToAdd->setPosition(1, $columnNumber);
             }
+        } elseif ($ruleToAdd->getColumnNumber() === null) {
+            $ruleToAdd->setPosition($ruleToAdd->getLineNumber(), 0);
         }
 
         \array_splice($this->rules[$propertyName], $position, 0, [$ruleToAdd]);
@@ -131,19 +166,15 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
      * @example $ruleSet->getRules('font-')
      *          //returns an array of all rules either beginning with font- or matching font.
      *
-     * @param Rule|string|null $searchPattern
+     * @param string|null $searchPattern
      *        Pattern to search for. If null, returns all rules.
      *        If the pattern ends with a dash, all rules starting with the pattern are returned
      *        as well as one matching the pattern with the dash excluded.
-     *        Passing a `Rule` behaves like calling `getRules($rule->getRule())`.
      *
      * @return array<int<0, max>, Rule>
      */
-    public function getRules($searchPattern = null): array
+    public function getRules(?string $searchPattern = null): array
     {
-        if ($searchPattern instanceof Rule) {
-            $searchPattern = $searchPattern->getRule();
-        }
         $result = [];
         foreach ($this->rules as $propertyName => $rules) {
             // Either no search rule is given or the search rule matches the found rule exactly
@@ -159,12 +190,7 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
                 $result = \array_merge($result, $rules);
             }
         }
-        \usort($result, static function (Rule $first, Rule $second): int {
-            if ($first->getLineNo() === $second->getLineNo()) {
-                return $first->getColNo() - $second->getColNo();
-            }
-            return $first->getLineNo() - $second->getLineNo();
-        });
+        \usort($result, [self::class, 'comparePositionable']);
 
         return $result;
     }
@@ -190,14 +216,14 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
      * like `{ background-color: green; background-color; rgba(0, 127, 0, 0.7); }` will only yield an associative array
      * containing the rgba-valued rule while `getRules()` would yield an indexed array containing both.
      *
-     * @param Rule|string|null $searchPattern
+     * @param string|null $searchPattern
      *        Pattern to search for. If null, returns all rules. If the pattern ends with a dash,
      *        all rules starting with the pattern are returned as well as one matching the pattern with the dash
-     *        excluded. Passing a `Rule` behaves like calling `getRules($rule->getRule())`.
+     *        excluded.
      *
      * @return array<string, Rule>
      */
-    public function getRulesAssoc($searchPattern = null): array
+    public function getRulesAssoc(?string $searchPattern = null): array
     {
         /** @var array<string, Rule> $result */
         $result = [];
@@ -209,46 +235,50 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
     }
 
     /**
-     * Removes a rule from this RuleSet. This accepts all the possible values that `getRules()` accepts.
-     *
-     * If given a Rule, it will only remove this particular rule (by identity).
-     * If given a name, it will remove all rules by that name.
-     *
-     * Note: this is different from pre-v.2.0 behaviour of PHP-CSS-Parser, where passing a Rule instance would
-     * remove all rules with the same name. To get the old behaviour, use `removeRule($rule->getRule())`.
-     *
-     * @param Rule|string|null $searchPattern
-     *        pattern to remove. If null, all rules are removed. If the pattern ends in a dash,
-     *        all rules starting with the pattern are removed as well as one matching the pattern with the dash
-     *        excluded. Passing a Rule behaves matches by identity.
+     * Removes a `Rule` from this `RuleSet` by identity.
      */
-    public function removeRule($searchPattern): void
+    public function removeRule(Rule $ruleToRemove): void
     {
-        if ($searchPattern instanceof Rule) {
-            $nameOfPropertyToRemove = $searchPattern->getRule();
-            if (!isset($this->rules[$nameOfPropertyToRemove])) {
-                return;
-            }
-            foreach ($this->rules[$nameOfPropertyToRemove] as $key => $rule) {
-                if ($rule === $searchPattern) {
-                    unset($this->rules[$nameOfPropertyToRemove][$key]);
-                }
-            }
-        } else {
-            foreach ($this->rules as $propertyName => $rules) {
-                // Either no search rule is given or the search rule matches the found rule exactly
-                // or the search rule ends in “-” and the found rule starts with the search rule or equals it
-                // (without the trailing dash).
-                if (
-                    $searchPattern === null || $propertyName === $searchPattern
-                    || (\strrpos($searchPattern, '-') === \strlen($searchPattern) - \strlen('-')
-                        && (\strpos($propertyName, $searchPattern) === 0
-                            || $propertyName === \substr($searchPattern, 0, -1)))
-                ) {
-                    unset($this->rules[$propertyName]);
-                }
+        $nameOfPropertyToRemove = $ruleToRemove->getRule();
+        if (!isset($this->rules[$nameOfPropertyToRemove])) {
+            return;
+        }
+        foreach ($this->rules[$nameOfPropertyToRemove] as $key => $rule) {
+            if ($rule === $ruleToRemove) {
+                unset($this->rules[$nameOfPropertyToRemove][$key]);
             }
         }
+    }
+
+    /**
+     * Removes rules by property name or search pattern.
+     *
+     * @param string $searchPattern
+     *        pattern to remove.
+     *        If the pattern ends in a dash,
+     *        all rules starting with the pattern are removed as well as one matching the pattern with the dash
+     *        excluded.
+     */
+    public function removeMatchingRules(string $searchPattern): void
+    {
+        foreach ($this->rules as $propertyName => $rules) {
+            // Either the search rule matches the found rule exactly
+            // or the search rule ends in “-” and the found rule starts with the search rule or equals it
+            // (without the trailing dash).
+            if (
+                $propertyName === $searchPattern
+                || (\strrpos($searchPattern, '-') === \strlen($searchPattern) - \strlen('-')
+                    && (\strpos($propertyName, $searchPattern) === 0
+                        || $propertyName === \substr($searchPattern, 0, -1)))
+            ) {
+                unset($this->rules[$propertyName]);
+            }
+        }
+    }
+
+    public function removeAllRules(): void
+    {
+        $this->rules = [];
     }
 
     protected function renderRules(OutputFormat $outputFormat): string
@@ -280,5 +310,27 @@ abstract class RuleSet implements CSSElement, CSSListItem, Positionable
         }
 
         return $formatter->removeLastSemicolon($result);
+    }
+
+    /**
+     * @return int negative if `$first` is before `$second`; zero if they have the same position; positive otherwise
+     */
+    private static function comparePositionable(Positionable $first, Positionable $second): int
+    {
+        if ($first->getLineNo() === $second->getLineNo()) {
+            return $first->getColNo() - $second->getColNo();
+        }
+        return $first->getLineNo() - $second->getLineNo();
+    }
+
+    private function hasRule(Rule $rule): bool
+    {
+        foreach ($this->rules as $rulesForAProperty) {
+            if (\in_array($rule, $rulesForAProperty, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
