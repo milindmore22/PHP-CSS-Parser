@@ -1,22 +1,85 @@
 parameters:
 	ignoreErrors:
 		-
-			message: "#^Call to an undefined method Sabberworm\\\\CSS\\\\OutputFormat\\:\\:setIndentation\\(\\)\\.$#"
-			count: 2
-			path: ../src/OutputFormat.php
-
-		-
-			message: "#^Class Sabberworm\\\\CSS\\\\Value\\\\Size constructor invoked with 5 parameters, 1\\-4 required\\.$#"
-			count: 2
-			path: ../src/RuleSet/DeclarationBlock.php
-
-		-
-			message: "#^Variable \\$oRule might not be defined\\.$#"
-			count: 2
-			path: ../src/RuleSet/DeclarationBlock.php
-
-		-
-			message: "#^Variable \\$oVal might not be defined\\.$#"
+			message: '#^Only booleans are allowed in an if condition, string given\.$#'
+			identifier: if.condNotBoolean
 			count: 1
+			path: ../src/CSSList/AtRuleBlockList.php
+
+		-
+			message: '#^Loose comparison via "\!\=" is not allowed\.$#'
+			identifier: notEqual.notAllowed
+			count: 1
+			path: ../src/CSSList/CSSList.php
+
+		-
+			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
+			identifier: equal.notAllowed
+			count: 1
+			path: ../src/CSSList/CSSList.php
+
+		-
+			message: '#^Parameters should have "Sabberworm\\CSS\\CSSList\\CSSListItem\|array" types as the only types passed to this method$#'
+			identifier: typePerfect.narrowPublicClassMethodParamType
+			count: 1
+			path: ../src/CSSList/CSSList.php
+
+		-
+			message: '#^Short ternary operator is not allowed\. Use null coalesce operator if applicable or consider using long ternary\.$#'
+			identifier: ternary.shortNotAllowed
+			count: 1
+			path: ../src/CSSList/CSSList.php
+
+		-
+			message: '#^Parameters should have "string\|null" types as the only types passed to this method$#'
+			identifier: typePerfect.narrowPublicClassMethodParamType
+			count: 1
+			path: ../src/CSSList/Document.php
+
+		-
+			message: '#^Only booleans are allowed in an if condition, Sabberworm\\CSS\\Value\\RuleValueList\|string\|null given\.$#'
+			identifier: if.condNotBoolean
+			count: 1
+			path: ../src/Rule/Rule.php
+
+		-
+			message: '#^Loose comparison via "\!\=" is not allowed\.$#'
+			identifier: notEqual.notAllowed
+			count: 1
+			path: ../src/RuleSet/DeclarationBlock.php
+
+		-
+			message: '#^Parameters should have "string" types as the only types passed to this method$#'
+			identifier: typePerfect.narrowPublicClassMethodParamType
+			count: 1
+			path: ../src/RuleSet/DeclarationBlock.php
+
+		-
+			message: '#^Loose comparison via "\!\=" is not allowed\.$#'
+			identifier: notEqual.notAllowed
+			count: 3
 			path: ../src/Value/CalcFunction.php
 
+		-
+			message: '#^Cannot call method getSize\(\) on Sabberworm\\CSS\\Value\\Value\|string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: ../src/Value/Color.php
+
+		-
+			message: '#^Loose comparison via "\=\=" is not allowed\.$#'
+			identifier: equal.notAllowed
+			count: 3
+			path: ../src/Value/Color.php
+
+		-
+			message: '#^Loose comparison via "\!\=" is not allowed\.$#'
+			identifier: notEqual.notAllowed
+			count: 1
+			path: ../src/Value/Size.php
+
+		-
+			message: '#^Parameters should have "float" types as the only types passed to this method$#'
+			identifier: typePerfect.narrowPublicClassMethodParamType
+			count: 1
+			path: ../src/Value/Size.php
